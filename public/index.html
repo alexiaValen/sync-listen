@@ -38,6 +38,8 @@
   .roster-name { font-weight: 600; font-size: 0.9rem; }
   .roster-track { font-size: 0.85rem; color: #555; }
   .roster-empty { font-size: 0.85rem; color: #999; }
+  .roster-play-link { font-size: 0.8rem; color: #1DB954; text-decoration: none; }
+  .roster-play-link:hover { text-decoration: underline; }
   #spotifyBtn {
     background: #1DB954;
     color: white;
@@ -185,6 +187,7 @@
         <div>
           <div class="roster-name">${escapeHtml(l.displayName)}</div>
           <div class="roster-track">${p.isPlaying ? "▶" : "⏸"} ${escapeHtml(p.name)} — ${escapeHtml(p.artist || "")}</div>
+          ${p.url ? `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener" class="roster-play-link">Play this on Spotify ↗</a>` : ""}
         </div>
       </div>`;
     }).join("");
