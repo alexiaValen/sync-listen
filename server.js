@@ -48,7 +48,8 @@ wss.on("connection", (ws) => {
 
     if (msg.type === "track") {
       state = { action: "pause", time: 0, trackUrl: msg.url, updatedAt: Date.now() };
-      broadcast({ type: "state", ...state, source: "track" }, ws);
+      // Echo back to the sender too, so their own player loads the track.
+      broadcast({ type: "state", ...state, source: "track" });
     }
   });
 });
