@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sync Listen</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    max-width: 480px;
+    margin: 60px auto;
+    padding: 0 20px;
+    color: #222;
+  }
+  h1 { font-size: 1.4rem; }
+  input[type=text] {
+    width: 100%;
+    padding: 8px;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+  }
+  button {
+    padding: 8px 14px;
+    margin-right: 8px;
+    cursor: pointer;
+  }
+  audio { width: 100%; margin-top: 16px; }
+  #status { margin-top: 14px; font-size: 0.9rem; color: #666; }
+</style>
+</head>
+<body>
+  <h1>🎧 Sync Listen</h1>
+  <p>Paste a direct audio URL (mp3/m4a) and load it. Anyone else on this page (same server) hears it in sync — no Bluetooth needed.</p>
+
+  <input id="trackUrl" type="text" placeholder="https://example.com/song.mp3" />
+  <button id="loadBtn">Load track</button>
+
+  <audio id="player" controls></audio>
+
+  <div id="status">Connecting…</div>
+
+<script>
+  const player = document.getElementById("player");
+  const trackUrlInput = document.getElementById("trackUrl");
+  const loadBtn = document.getElementById("loadBtn");
+  const statusEl = document.getElementById("status");
+
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${proto}//${location.host}`);
+
+  let applyingRemote = false; // guard against feedback loops
+  const DRIFT_TOLERANCE = 0.35; // seconds
+
+  ws.onopen = () => { statusEl.textContent = "Connected. Waiting for a track…"; };
+  ws.onclose = () => { statusEl.textContent = "Disconnected. Refresh to reconnect."; };
+
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type !== "state") return;
+
+    applyingRemote = true;
+
+    if (msg.trackUrl && player.src !== msg.trackUrl) {
+      player.src = msg.trackUrl;
+      trackUrlInput.value = msg.trackUrl;
+    }
+
+    // Estimate elapsed time since the event was sent, so latecomers/playing clients catch up.
+    const elapsed = msg.action === "play" ? (Date.now() - msg.updatedAt) / 1000 : 0;
+    const targetTime = msg.time + elapsed;
+
+    if (Math.abs(player.currentTime - targetTime) > DRIFT_TOLERANCE) {
+      player.currentTime = targetTime;
+    }
+
+    if (msg.action === "play" && player.paused) {
+      player.play().catch(() => {});
+    } else if (msg.action === "pause" && !player.paused) {
+      player.pause();
+    }
+
+    statusEl.textContent = msg.trackUrl ? "In sync." : "Waiting for a track…";
+    setTimeout(() => { applyingRemote = false; }, 50);
+  };
+
+  loadBtn.onclick = () => {
+    const url = trackUrlInput.value.trim();
+    if (!url) return;
+    ws.send(JSON.stringify({ type: "track", url }));
+  };
+
+  player.addEventListener("play", () => {
+    if (applyingRemote) return;
+    ws.send(JSON.stringify({ type: "play", time: player.currentTime }));
+  });
+
+  player.addEventListener("pause", () => {
+    if (applyingRemote) return;
+    ws.send(JSON.stringify({ type: "pause", time: player.currentTime }));
+  });
+
+  player.addEventListener("seeked", () => {
+    if (applyingRemote) return;
+    ws.send(JSON.stringify({ type: "seek", time: player.currentTime }));
+  });
+</script>
+</body>
+</html>
