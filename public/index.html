@@ -135,7 +135,6 @@
 
   const spotifyBtn = document.getElementById("spotifyBtn");
   const rosterEl = document.getElementById("roster");
-  const myDisplayName = "Listener-" + Math.random().toString(36).slice(2, 6);
 
   spotifyBtn.onclick = () => { location.href = "/login"; };
 
@@ -155,7 +154,7 @@
 
       ws.send(JSON.stringify({
         type: "nowPlaying",
-        displayName: myDisplayName,
+        displayName: data.displayName,
         playing: data.playing,
       }));
     } catch {

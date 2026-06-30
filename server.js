@@ -71,10 +71,17 @@ app.get("/callback", async (req, res) => {
   }
 
   const tokens = await tokenRes.json();
+
+  const profileRes = await fetch("https://api.spotify.com/v1/me", {
+    headers: { Authorization: `Bearer ${tokens.access_token}` },
+  });
+  const profile = profileRes.ok ? await profileRes.json() : null;
+
   req.session.spotify = {
     accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token,
     expiresAt: Date.now() + tokens.expires_in * 1000,
+    displayName: profile?.display_name || "Spotify user",
   };
   res.redirect("/");
 });
@@ -112,6 +119,7 @@ async function getValidAccessToken(req) {
     accessToken: refreshed.access_token,
     refreshToken: refreshed.refresh_token || spotify.refreshToken,
     expiresAt: Date.now() + refreshed.expires_in * 1000,
+    displayName: spotify.displayName,
   };
   return req.session.spotify.accessToken;
 }
@@ -120,19 +128,22 @@ app.get("/me/now-playing", async (req, res) => {
   const accessToken = await getValidAccessToken(req);
   if (!accessToken) return res.json({ loggedIn: false });
 
+  const displayName = req.session.spotify.displayName;
+
   const npRes = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
   if (npRes.status === 204 || !npRes.ok) {
-    return res.json({ loggedIn: true, playing: null });
+    return res.json({ loggedIn: true, displayName, playing: null });
   }
 
   const data = await npRes.json();
-  if (!data?.item) return res.json({ loggedIn: true, playing: null });
+  if (!data?.item) return res.json({ loggedIn: true, displayName, playing: null });
 
   res.json({
     loggedIn: true,
+    displayName,
     playing: {
       name: data.item.name,
       artist: data.item.artists?.map((a) => a.name).join(", "),
